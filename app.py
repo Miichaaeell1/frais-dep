@@ -1,71 +1,70 @@
 import streamlit as st
-import requests
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
-# Charger la clé API depuis les secrets Streamlit
-ORS_API_KEY = st.secrets["ORS_API_KEY"]
-ORS_URL = "https://api.openrouteservice.org/v2/directions/driving-car"
+# Titre de l'application
+st.title("Calculateur de Distance et Coût du Péage avec Mappy.fr")
 
-# Fonction pour calculer la distance entre deux adresses via l'API OpenRouteService
-def calculer_distance(adresse_destination):
-    origine = "14F rue Pierre de Coubertin, 21000 DIJON"
+# Saisie des adresses
+address1 = st.text_input("Entrez la première adresse (ex: Lyon 69001-69009)")
+address2 = st.text_input("Entrez la deuxième adresse (ex: Dijon 21000)")
+
+def get_toll_cost_mappy(address1, address2):
+    """Scrape Mappy.fr pour obtenir le coût du péage avec Selenium et Browserless."""
+    # Configurer Selenium pour utiliser Browserless
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
     
-    # Géocodage des adresses
-    def geocoder(adresse):
-        geo_url = f"https://api.openrouteservice.org/geocode/search?api_key={ORS_API_KEY}&text={adresse}"
-        response = requests.get(geo_url).json()
-        if "features" not in response or len(response["features"]) == 0:
-            raise ValueError(f"Erreur de géocodage pour l'adresse : {adresse}")
-        coordinates = response["features"][0]["geometry"]["coordinates"]
-        return coordinates
-    
+    # URL de Browserless (vous devez créer un compte et obtenir une clé API)
+    browserless_url = "wss://chrome.browserless.io?token=VOTRE_CLE_API"
+    driver = webdriver.Remote(
+        command_executor=browserless_url,
+        options=chrome_options
+    )
+
     try:
-        coord_origine = geocoder(origine)
-        coord_destination = geocoder(adresse_destination)
+        # Construire l'URL de recherche Mappy
+        url = f"https://fr.mappy.com/itineraire#/voiture/{address1}/{address2}/car/5"
+        driver.get(url)
         
-        st.write(f"Coordonnées origine : {coord_origine}")
-        st.write(f"Coordonnées destination : {coord_destination}")
+        # Attendre que le bloc contenant le coût du péage soit présent
+        wait = WebDriverWait(driver, 20)  # Attendre jusqu'à 20 secondes
+        toll_block = wait.until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div._FKR1"))
+        )
         
-        # Calcul de l'itinéraire avec l'inversion des coordonnées
-        route_params = {
-            "api_key": ORS_API_KEY,
-            "start": f"{coord_origine[1]},{coord_origine[0]}",  # Inverser l'ordre
-            "end": f"{coord_destination[1]},{coord_destination[0]}"  # Inverser l'ordre
-        }
+        # Extraire tous les éléments <span> avec la classe MLSqu dans ce bloc
+        toll_cost_elements = toll_block.find_elements(By.CSS_SELECTOR, "span.MLSqu")
         
-        route_response = requests.get(ORS_URL, params=route_params).json()
-        
-        # Afficher la réponse brute pour débogage
-        st.write("Réponse brute de l'API de directions :")
-        st.json(route_response)
-        
-        # Vérifier si l'erreur concerne un point routable introuvable
-        if "error" in route_response and route_response["error"]["code"] == 2010:
-            raise ValueError("La destination est trop éloignée d'une route routable. Essayez une adresse plus précise ou une destination différente.")
-        
-        if "routes" not in route_response or len(route_response["routes"]) == 0:
-            raise ValueError("Erreur de calcul de l'itinéraire")
-        
-        distance_km = route_response["routes"][0]["summary"]["distance"] / 1000  # Conversion en km
-        return distance_km * 2  # Aller-retour
+        # Extraire le coût du péage (dernier élément)
+        if toll_cost_elements:
+            toll_cost = toll_cost_elements[-1].text.strip()  # Prendre le dernier élément
+            return toll_cost
+        else:
+            st.error("Coût du péage non trouvé sur Mappy.fr.")
+            return None
     except Exception as e:
-        st.error(f"Erreur : {e}")
+        st.error(f"Erreur lors du scraping de Mappy.fr : {e}")
         return None
+    finally:
+        driver.quit()  # Fermer le navigateur
 
-# Interface Streamlit
-st.title("Calcul des frais de déplacement")
-
-prix_carburant = st.number_input("Prix du carburant (€)", value=1.85)
-destination = st.text_input("Destination", "Paris")
-quote_part = st.number_input("Quote-part voiture (%)", value=50)
-hebergement = st.number_input("Coût de l'hébergement (€)", value=150)
-restauration = st.number_input("Coût de la restauration par repas (€)", value=60)
-nb_repas = st.number_input("Nombre de repas", value=2, step=1)
-parking_par_jour = st.number_input("Coût du parking par jour (€)", value=25)
-nb_jours = st.number_input("Nombre de jours de déplacement", value=2, step=1)
-
-if st.button("Calculer"):
-    distance_km = calculer_distance(destination)
-    if distance_km is None:
-        st.error("Impossible de calculer la distance. Vérifiez l'adresse entrée.")
+# Bouton pour lancer le calcul
+if st.button("Calculer le coût du péage avec Mappy.fr"):
+    if address1 and address2:
+        # Remplacer les espaces par "%20" pour l'URL
+        address1_formatted = address1.replace(" ", "%20")
+        address2_formatted = address2.replace(" ", "%20")
+        
+        # Obtenir le coût du péage
+        toll_cost = get_toll_cost_mappy(address1_formatted, address2_formatted)
+        if toll_cost:
+            st.success(f"Coût estimé du péage : {toll_cost}")
     else:
-        st.write(f"### Distance aller-retour : {distance_km:.2f} km")
+        st.warning("Veuillez entrer deux adresses valides.")
