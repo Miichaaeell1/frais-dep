@@ -38,6 +38,10 @@ def calculer_distance(adresse_destination):
         st.write("Réponse brute de l'API de directions :")
         st.json(route_response)
         
+        # Vérifier si l'erreur concerne un point routable introuvable
+        if "error" in route_response and route_response["error"]["code"] == 2010:
+            raise ValueError("La destination est trop éloignée d'une route routable. Essayez une adresse plus précise ou une destination différente.")
+        
         if "routes" not in route_response or len(route_response["routes"]) == 0:
             raise ValueError("Erreur de calcul de l'itinéraire")
         
