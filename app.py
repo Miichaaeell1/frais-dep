@@ -13,6 +13,8 @@ def calculer_distance(adresse_destination):
     def geocoder(adresse):
         geo_url = f"https://api.openrouteservice.org/geocode/search?api_key={ORS_API_KEY}&text={adresse}"
         response = requests.get(geo_url).json()
+        if "features" not in response or len(response["features"]) == 0:
+            raise ValueError(f"Erreur de géocodage pour l'adresse : {adresse}")
         coordinates = response["features"][0]["geometry"]["coordinates"]
         return coordinates
     
@@ -27,9 +29,13 @@ def calculer_distance(adresse_destination):
             "end": f"{coord_destination[0]},{coord_destination[1]}"
         }
         route_response = requests.get(ORS_URL, params=route_params).json()
+        if "routes" not in route_response or len(route_response["routes"]) == 0:
+            raise ValueError("Erreur de calcul de l'itinéraire")
+        
         distance_km = route_response["routes"][0]["summary"]["distance"] / 1000  # Conversion en km
         return distance_km * 2  # Aller-retour
-    except:
+    except Exception as e:
+        st.error(f"Erreur : {e}")
         return None
 
 # Fonction pour calculer les frais de déplacement
