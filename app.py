@@ -1,11 +1,8 @@
 import streamlit as st
 import requests
-import os
-from dotenv import load_dotenv
 
-# Charger la clé API depuis les variables d'environnement
-load_dotenv()
-ORS_API_KEY = "5b3ce3597851110001cf6248f4fbf2c6c5084d27aa18f31bc0e2c0d7"
+# Charger la clé API depuis les secrets Streamlit
+ORS_API_KEY = st.secrets["ORS_API_KEY"]
 ORS_URL = "https://api.openrouteservice.org/v2/directions/driving-car"
 
 # Fonction pour calculer la distance entre deux adresses via l'API OpenRouteService
