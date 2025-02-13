@@ -25,15 +25,19 @@ def calculer_distance(adresse_destination):
         st.write(f"Coordonnées origine : {coord_origine}")
         st.write(f"Coordonnées destination : {coord_destination}")
         
-        # Calcul de l'itinéraire
+        # Calcul de l'itinéraire avec l'inversion des coordonnées
         route_params = {
             "api_key": ORS_API_KEY,
-            "start": f"{coord_origine[0]},{coord_origine[1]}",
-            "end": f"{coord_destination[0]},{coord_destination[1]}"
+            "start": f"{coord_origine[1]},{coord_origine[0]}",  # Inverser l'ordre
+            "end": f"{coord_destination[1]},{coord_destination[0]}"  # Inverser l'ordre
         }
+        
         route_response = requests.get(ORS_URL, params=route_params).json()
         
-        # Vérifier la réponse de l'API de directions
+        # Afficher la réponse brute pour débogage
+        st.write("Réponse brute de l'API de directions :")
+        st.json(route_response)
+        
         if "routes" not in route_response or len(route_response["routes"]) == 0:
             raise ValueError("Erreur de calcul de l'itinéraire")
         
